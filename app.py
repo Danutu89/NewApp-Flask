@@ -166,4 +166,5 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO) """
 
 if __name__ == "__main__":
     app.jinja_env.cache = {}
-    socket.run(app, threading=True, host='0.0.0.0', port=8000);
+    app.run(debug=True, host='0.0.0.0', port=8000)
+    #socket.run(app, threading=True, host='0.0.0.0', port=8000);

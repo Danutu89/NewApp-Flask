@@ -1,3 +1,4 @@
+geoip2
 backports.functools-lru-cache==1.6.1
 bcrypt==3.1.7
 beautifulsoup4==4.8.2

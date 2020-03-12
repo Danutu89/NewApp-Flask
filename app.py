@@ -130,17 +130,17 @@ def on_disconnect():
 
 @app.errorhandler(404)
 def server_error(error):
-    return jsonify({'error': 404})
+    return make_response(jsonify({'error': 404}),404)
 
 
 @app.errorhandler(400)
 def server_error(error):
-    return jsonify({'error': 400})
+    return make_response(jsonify({'error': 400}), 400)
 
 
 @app.errorhandler(500)
 def server_error(error):
-    return jsonify({'error': 500})
+    return make_response(jsonify({'error': 500}), 500)
 
 
 from api import api
@@ -166,5 +166,4 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO) """
 
 if __name__ == "__main__":
     app.jinja_env.cache = {}
-    app.run(debug=True, host='0.0.0.0', port=8000)
-    #socket.run(app, threading=True, host='0.0.0.0', port=8000);
+    socket.run(app, threading=True, host='0.0.0.0', port=8000);

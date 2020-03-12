@@ -78,5 +78,5 @@ class SearchableMixin(object):
             add_to_index(cls.__tablename__, obj)
 
 
-db.event.listen(db.session, 'before_commit', SearchableMixin.before_commit)
-db.event.listen(db.session, 'after_commit', SearchableMixin.after_commit)
+#db.event.listen(db.session, 'before_commit', SearchableMixin.before_commit)
+#db.event.listen(db.session, 'after_commit', SearchableMixin.after_commit)

@@ -1,4 +1,5 @@
 import datetime
+import codecs
 import calendar
 import httpagentparser
 from flask import Blueprint, make_response, jsonify, request, url_for, render_template
@@ -7,7 +8,7 @@ from models import PostModel, TagModel, LikeModel, ReplyModel, Analyze_Pages, Us
     Notifications_Model, Subscriber, Analyze_Session
 
 import datetime as dt
-
+from analyze import parseVisitator, sessionID, GetSessionId, getAnalyticsData
 from sqlalchemy import desc, func, or_
 from sqlalchemy.schema import Sequence
 import socket
@@ -25,6 +26,9 @@ import readtime
 from webptools import webplib as webp
 import json
 from pywebpush import webpush, WebPushException
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 api = Blueprint(
     'api', __name__,
@@ -151,7 +155,7 @@ def home():
     mode = request.args.get('mode')
     search = request.args.get('search')
     if tag:
-        tag_posts = TagModel.query.filter_by(name=tag).first()
+        tag_posts = TagModel.query.filter_by(name=tag).first_or_404()
         if token:
             posts = PostModel.query.filter_by(approved=True).filter(
                 or_(PostModel.lang.like(user_info.lang), PostModel.lang.like('en'))).filter(
@@ -273,7 +277,7 @@ def home():
         posts_json['likes'] = post.likes
         posts_json['read_time'] = post.read_time
         posts_json['link'] = (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id)
-        posts_json['tags'] = TagModel.query.with_entities(TagModel.name).filter_by(post = post.id).all()
+        posts_json['tags'] = TagModel.query.with_entities(TagModel.name).filter(TagModel.post.contains([post.id])).all()
         if token:
             if post.id in user_info.saved_posts:
                 posts_json['saved'] = True
@@ -472,7 +476,7 @@ def home_page(page):
         posts_json['likes'] = post.likes
         posts_json['read_time'] = post.read_time
         posts_json['link'] = (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id)
-        posts_json['tags'] = TagModel.query.with_entities(TagModel.name).filter_by(post = post.id).all()
+        posts_json['tags'] = TagModel.query.with_entities(TagModel.name).filter(TagModel.post.contains([post.id])).all()
         if token:
             if post.id in user_info.saved_posts:
                 posts_json['saved'] = True
@@ -493,7 +497,7 @@ def home_page(page):
 
 @api.route('/post/<int:id>')
 def post(id):
-    post = PostModel.query.filter_by(id=id).first()
+    post = PostModel.query.filter_by(id=id).first_or_404()
     tags = TagModel.query.all()
     replies = ReplyModel.query.filter_by(post_id=id).all()
 
@@ -528,7 +532,7 @@ def post(id):
         'country_flag': post.user_in.country_flag,
         'posts': []
     }
-    post_json['tags'] = TagModel.query.with_entities(TagModel.name).filter_by(post = post.id).all()
+    post_json['tags'] = TagModel.query.with_entities(TagModel.name).filter(TagModel.post.contains([post.id])).all()
     post_json['replies'] = []
 
     for reply in post.replyes:
@@ -554,7 +558,7 @@ def post(id):
                 'name': post.user_in.name,
                 'avatar': post.user_in.avatar
             },
-            'tags': TagModel.query.with_entities(TagModel.name).filter_by(post = post.id).all()
+            'tags': TagModel.query.with_entities(TagModel.name).filter(TagModel.post.contains([post.id])).all()
         }
         user_posts.append(user_posts_json.copy())
 
@@ -583,7 +587,7 @@ def post(id):
 
 @api.route('/user/<string:name>')
 def user(name):
-    user = UserModel.query.filter_by(name=name).first()
+    user = UserModel.query.filter_by(name=name).first_or_404()
     if user.followed:
         followed = UserModel.query.filter(UserModel.id.in_(user.followed[0:5])).all()
 
@@ -600,7 +604,7 @@ def user(name):
             'avatar': user.avatar
         }
         posts_temp['posted_on'] = post.time_ago()
-        posts_temp['tags'] = TagModel.query.with_entities(TagModel.name).filter_by(post = post.id).all()
+        posts_temp['tags'] = TagModel.query.with_entities(TagModel.name).filter(TagModel.post.contains([post.id])).all()
         posts_temp['read_time'] = post.read_time
         posts_temp['id'] = post.id
         posts_temp['link'] = (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id)
@@ -718,7 +722,7 @@ def user_settings():
                                 'admin_panel_permission': user_info.roleinfo.admin_panel_permission
                             },
                             'name': user_info.name,
-                            'realname': user_info.real_name,
+                            'real_name': user_info.real_name,
                             'avatar': user_info.avatar,
                             'theme': user_info.theme,
                             'theme_mode': user_info.theme_mode,
@@ -985,6 +989,7 @@ def like_post(id):
     like = list(user.liked_posts)
     post = PostModel.query.filter_by(id=id).first()
     not_id = str(db.session.execute(Sequence('notifications_id_seq')))
+    print(not_id)
 
     if like is not None:
         if id in like:
@@ -1246,7 +1251,7 @@ def newpost():
     if request.method != 'POST':
         return make_response(jsonify({'operation': 'error', 'error': 'Invalid method'}), 401)
 
-    data = json.loads(request.form['data'].encode().decode('utf-8'))
+    data = json.loads(str(request.form['data']).decode('utf-8', errors='replace'))
 
     if not data['token'] or not data['title'] or not data['content'] or not data['title'] or not data['tags']:
         return make_response(jsonify({'operation': 'error', 'error': 'Missing data'}), 401)
@@ -1258,7 +1263,6 @@ def newpost():
         return make_response(jsonify({'operation': 'error', 'error': 'Invalid token'}), 401)
 
     index = db.session.execute(Sequence('posts_id_seq'))
-    not_id = str(db.session.execute(Sequence('notifications_id_seq')))
     thumbnail_link = None
     if data['image']:
         thumbnail = save_img(index)
@@ -1273,7 +1277,7 @@ def newpost():
         None,
         decoded['id'],
         None,
-        True,
+        False,
         False,
         None,
         None,
@@ -1302,22 +1306,23 @@ def newpost():
             )
             db.session.add(tag)
     for user in user_.followed:
+        not_id = str(db.session.execute(Sequence('notifications_id_seq')))
         notification = Notifications_Model(
             int(not_id),
             decoded['id'],
             '{} shared a new post'.format(decoded['name']),
             str(data['title']),
-            '/post/' + (str(data['title']).replace(' ', '-')).replace('?', '') + '-' + str(index),
+            '/post/' + (str(data['title']).replace(' ', '-')).replace('?', '') + '-' + str(index) + '?notification_id='+str(not_id),
             user,
             None,
             None,
             'post'
         )
-        send_notification(post.user_in.id, {
+        send_notification(user, {
             'text': '@{} shared a new post'.format(decoded['name']),
             'link': '/post/' + (str(data['title']).replace(' ', '-')).replace('?', '') + '-' + str(index),
             'icon': decoded['avatar'],
-            'id': not_id
+            'id': int(not_id)
         })
         db.session.add(notification)
     db.session.add(new_post)
@@ -1611,6 +1616,17 @@ def notif():
         db.session.commit()
     return make_response(jsonify({'operation': 'success'}), 200)
 
+@api.route("/analytics/view", methods=['POST'])
+def view():
+    if request.method != 'POST':
+        return make_response(jsonify({'operation': 'failed'}), 401)
+
+    data = request.json
+    parse = [data['path'], GetSessionId(), str(dt.datetime.now().replace(microsecond=0))]
+    getAnalyticsData(parse)
+
+    return make_response(jsonify({'operation': 'success', 'session': GetSessionId()}), 200)
+
 
 @api.route("/admin/dashboard")
 def dashboard():
@@ -1660,11 +1676,6 @@ def dashboard():
 
     back_days = now - dt.timedelta(days=15)
     back_perc = back_days - dt.timedelta(days=15)
-    pages = db.session.query(Analyze_Pages.name, func.count(Analyze_Pages.name).label('views')).filter(
-        Analyze_Pages.first_visited.between('{}-{}-{}'.format(back_days.year, back_days.month, back_days.day),
-                                            '{}-{}-{}'.format(now.year, now.month, now.day))).group_by(
-        Analyze_Pages.name).order_by(
-        func.count(Analyze_Pages.name).desc()).limit(10).all()
 
     for session in sessions:
         if session.referer is not None:
@@ -1735,35 +1746,35 @@ def dashboard():
     
     perc =  Analyze_Pages.perc_replies()
     if perc > 0:
-        replies['perc'] = str(perc)+f'% higher than in the last 15 days'
+        replies['perc'] = str(perc)+'% higher than in the last 15 days'
     elif perc == 0:
-        replies['perc'] = str(perc)+f'% same in the last 15 days'
+        replies['perc'] = str(perc)+'% same in the last 15 days'
     else:
-        replies['perc'] = str((perc*(-1)))+f'% lower than in the last 15 days'
+        replies['perc'] = str((perc*(-1)))+'% lower than in the last 15 days'
 
     perc =  Analyze_Pages.perc_views()
     if perc > 0:
-        views['perc'] = str(perc)+f'% higher than in the last 15 days'
+        views['perc'] = str(perc)+'% higher than in the last 15 days'
     elif perc == 0:
-        views['perc'] = str(perc)+f'% same in the last 15 days'
+        views['perc'] = str(perc)+'% same in the last 15 days'
     else:
-        views['perc'] = str((perc*(-1)))+f'% lower than in the last 15 days'
+        views['perc'] = str((perc*(-1)))+'% lower than in the last 15 days'
     
     perc =  Analyze_Pages.perc_users()
     if perc > 0:
-        users['perc'] = str(perc)+f'% higher than in the last 15 days'
+        users['perc'] = str(perc)+'% higher than in the last 15 days'
     elif perc == 0:
-        users['perc'] = str(perc)+f'% same in the last 15 days'
+        users['perc'] = str(perc)+'% same in the last 15 days'
     else:
-        users['perc'] = str((perc*(-1)))+f'% lower than in the last 15 days'
+        users['perc'] = str((perc*(-1)))+'% lower than in the last 15 days'
 
     perc =  Analyze_Pages.perc_posts()
     if perc > 0:
-        posts['perc'] = str(perc)+f'% higher than in the last 15 days'
+        posts['perc'] = str(perc)+'% higher than in the last 15 days'
     elif perc == 0:
-        posts['perc'] = str(perc)+f'% same in the last 15 days'
+        posts['perc'] = str(perc)+'% same in the last 15 days'
     else:
-        posts['perc'] = str((perc*(-1)))+f'% lower than in the last 15 days'
+        posts['perc'] = str((perc*(-1)))+'% lower than in the last 15 days'
 
     replies['new'] = Analyze_Pages.replies_15_days()
     replies['old'] = Analyze_Pages.replies_30_days()
@@ -1873,9 +1884,71 @@ def a_posts():
         posts_json['likes'] = post.likes
         posts_json['read_time'] = post.read_time
         posts_json['link'] = (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id)
-        posts_json['tags'] = TagModel.query.with_entities(TagModel.name).filter_by(post = post.id).all()
+        posts_json['tags'] = TagModel.query.with_entities(TagModel.name).filter(TagModel.post.contains([post.id])).all()
 
         posts_unapproved.append(posts_json.copy())
         posts_json.clear()
-    
-    return make_response(jsonify({'operation': 'success', 'posts': {'old': posts_old, 'new': posts_new}, 'unapproved': posts_unapproved}), 200)
+
+    main_data = {'posts_d': {'now': 0, 'perc': 0, 'perc_a': 0}, 'replies_d': {'now': 0, 'perc': 0, 'perc_a': 0}}
+    users_now = UserModel.query.filter(UserModel.join_date.between('{}-{}-{}'.format(back_days.year, back_days.month, back_days.day), '{}-{}-{}'.format(now.year, now.month, now.day))).filter_by(activated=True).count()
+    posts_now = PostModel.query.filter(PostModel.posted_on.between('{}-{}-{}'.format(back_days.year, back_days.month, back_days.day), '{}-{}-{}'.format(now.year, now.month, now.day))).filter_by(approved=True).count()
+    users_back = UserModel.query.filter(UserModel.join_date.between('{}-{}-{}'.format(back_perc.year, back_perc.month, back_perc.day),'{}-{}-{}'.format(back_days.year, back_days.month, back_days.day))).filter_by(activated=True).count()
+    posts_back = PostModel.query.filter(PostModel.posted_on.between('{}-{}-{}'.format(back_perc.year, back_perc.month, back_perc.day),'{}-{}-{}'.format(back_days.year, back_days.month, back_days.day))).filter_by(approved=True).count()
+    try:
+        den_now = posts_now / users_now
+    except:
+        den_now = 0
+    try:
+        den_back = posts_back / users_back
+    except:
+        den_back = 0
+    main_data['posts_d']['now'] =  den_now
+    try:
+        perc = round((((den_now - den_back)/den_back)*100), 2)
+    except:
+        perc = 0
+
+    main_data['posts_d']['perc_d'] = perc
+
+    if perc > 0:
+        main_data['posts_d']['perc'] = str(perc) + '% higher than in the last 15 days'
+    elif perc == 0:
+        main_data['posts_d']['perc'] = str(perc) + '% same in the last 15 days'
+    else:
+        main_data['posts_d']['perc'] = str((perc * (-1))) + '% lower than in the last 15 days'
+
+    replies_now = PostModel.query.filter(
+        ReplyModel.posted_on.between('{}-{}-{}'.format(back_days.year, back_days.month, back_days.day),
+                                    '{}-{}-{}'.format(now.year, now.month, now.day))).filter_by(approved=True).count()
+
+    replies_back = PostModel.query.filter(
+        ReplyModel.posted_on.between('{}-{}-{}'.format(back_perc.year, back_perc.month, back_perc.day),
+                                    '{}-{}-{}'.format(back_days.year, back_days.month, back_days.day))).filter_by(
+        approved=True).count()
+
+    try:
+        den_now = replies_now / users_now
+    except:
+        den_now = 0
+    try:
+        den_back = replies_back / users_back
+    except:
+        den_back = 0
+    main_data['replies_d']['now'] = den_now
+    try:
+        perc = round((((den_now - den_back) / den_back) * 100), 2)
+    except:
+        perc = 0
+
+    main_data['replies_d']['perc_d'] = perc
+
+    if perc > 0:
+        main_data['replies_d']['perc'] = str(perc) + '% higher than in the last 15 days'
+    elif perc == 0:
+        main_data['replies_d']['perc'] = str(perc) + '% same in the last 15 days'
+    else:
+        main_data['replies_d']['perc'] = str((perc * (-1))) + '% lower than in the last 15 days'
+
+
+    return make_response(jsonify({'operation': 'success', 'main_data': main_data,'posts': {'old': posts_old, 'new': posts_new}, 'unapproved': posts_unapproved}), 200)
+

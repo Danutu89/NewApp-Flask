@@ -703,10 +703,10 @@ def user_settings():
         user_info.genre = data['genre']
 
         if data['avatarimg']:
-            user_info.avatar = 'https://newapp.nl/static/profile_pics/' + save_img(user_info.id, 'profile')
+            user_info.avatar = '/static/profile_pics/' + save_img(user_info.id, 'profile')
 
         if data['coverimg']:
-            user_info.cover = 'https://newapp.nl/static/profile_cover/' + save_img(user_info.id, 'cover')
+            user_info.cover = '/static/profile_cover/' + save_img(user_info.id, 'cover')
 
         db.session.commit()
 
@@ -1232,17 +1232,33 @@ def newreply():
         None,
         'reply'
     )
+    db.session.add(new_reply)
+    db.session.commit()
+    db.session.add(notify)
+    db.session.commit()
     send_notification(post.user_in.id, {
         'text': '@{} replied to your post'.format(decoded['name']),
         'link': '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id) + '#reply_' + str(
             index),
         'icon': decoded['avatar'],
-        'id': not_id
+        'id': not_is
     })
-    db.session.add(new_reply)
-    db.session.commit()
-    db.session.add(notify)
-    db.session.commit()
+    mentions = re.findall("@([a-zA-Z0-9]{1,15})", cleanhtml(data['content']))
+    mentioned = UserModel.query.filter(UserModel.name.in_(mentions)).all()
+    for m in mentioned:
+        not_id = str(db.session.execute(Sequence('notifications_id_seq')))
+        notify = Notifications_Model(
+            int(not_id),
+            decoded['id'],
+            '{} mentioned you in a comment'.format(m.name),
+            cleanhtml(data['content'])[:20],
+            '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(
+                post.id) + '?notification_id=' + str(not_id),
+            post.user_in.id,
+            False,
+            None,
+            'reply'
+        )
     return make_response(jsonify({'operation': 'success', 'reply_id': index}), 200)
 
 
@@ -1622,8 +1638,8 @@ def view():
         return make_response(jsonify({'operation': 'failed'}), 401)
 
     data = request.json
-    parse = [data['path'], GetSessionId(), str(dt.datetime.now().replace(microsecond=0))]
-    getAnalyticsData(parse)
+    parse = [data['path'], str(dt.datetime.now().replace(microsecond=0))]
+    getAnalyticsData(parse,data['external'])
 
     return make_response(jsonify({'operation': 'success', 'session': GetSessionId()}), 200)
 

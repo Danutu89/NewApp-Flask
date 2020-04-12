@@ -1,6 +1,5 @@
 from app import app, db
 import geoip2.database
-from datetime import datetime
 import httpagentparser
 import hashlib
 from datetime import datetime
@@ -27,12 +26,12 @@ def create_pages(data):
     query = Analyze_Pages(
         None,
         data[0],
-        data[1],
         sessionID,
+        data[1],
         None
     )
     db.session.add(query)
-    db.session.commit()
+    db.session.commit() 
 
 
 def update_pages(pageId):
@@ -74,31 +73,34 @@ def parseVisitator(data):
     update_or_create_page(data)
 
 
-def getSession():
+def getSession(external):
     global sessionID
     time = (datetime.now().replace(microsecond=0)).replace(second=0)
     if 'user' not in session:
         lines = (str(time) + userIP).encode('utf-8')
         session['user'] = hashlib.md5(lines).hexdigest()
         sessionID = session['user']
-        try:
-            if request.headers['referer'] != 'android-app://nl.newapp.app':
-                temp = urllib(str(request.headers['referer']))
-                if len(temp.netloc.split(".")) > 2:
-                    domain = temp.netloc.split(".")[1]
+        if external:
+            referer = None
+        else:
+            try:
+                if request.headers['referer'] != 'android-app://nl.newapp.app':
+                    temp = urllib(str(request.headers['referer']))
+                    if len(temp.netloc.split(".")) > 2:
+                        domain = temp.netloc.split(".")[1]
+                    else:
+                        domain = temp.netloc.split(".")[0]
+                    referer = str(domain)[0].upper() + str(domain)[1:]
+                    if referer == 'Google' or referer == 'Bing' or referer == 'Yandex' or referer == 'Duckduckgo':
+                        referer = 'Organic'
+                    if referer == 'nl' or referer == 'Newapp':
+                        referer = None
+                    if referer == 'T':
+                        referer = 'Twitter'
                 else:
-                    domain = temp.netloc.split(".")[0]
-                referer = str(domain)[0].upper() + str(domain)[1:]
-                if referer == 'Google' or referer == 'Bing' or referer == 'Yandex' or referer == 'Duckduckgo':
-                    referer = 'Organic'
-                if referer == 'nl' or referer == 'Newapp':
-                    referer = None
-                if referer == 'T':
-                    referer = 'Twitter'
-            else:
-                referer = 'App'
-        except:
-            referer = 'Direct'
+                    referer = 'App'
+            except:
+                referer = 'Direct'
 
         data = [userIP, userContinent, userCountry, userCity, userOS, userBrowser, sessionID, time, bot,
                 str(userLanguage).lower(), referer, iso_code]
@@ -107,7 +109,7 @@ def getSession():
         sessionID = session['user']
 
 
-def getAnalyticsData(data):
+def getAnalyticsData(data,external):
     if request.endpoint != 'static' and request.endpoint != 'sitemap' and request.endpoint != 'opensearch' and request.endpoint != 'flask_session' and request.url_rule.endpoint != 'users.login' and request.url_rule.endpoint != 'users.logout' and request.url_rule.endpoint != 'admin.main':
         global userOS, userBrowser, userIP, userContinent, userCity, userCountry, sessionID, bot, userLanguage, iso_code
         userInfo = httpagentparser.detect(request.headers.get('User-Agent'))
@@ -161,7 +163,7 @@ def getAnalyticsData(data):
             iso_code = str(local_ip.location.iso_code).upper()
             userLanguage = result_2['languages'][0]['iso639_1']
 
-        getSession()
+        getSession(external)
         parseVisitator(data)
 
 

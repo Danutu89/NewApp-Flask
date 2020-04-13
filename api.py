@@ -498,12 +498,9 @@ def home_page(page):
 @api.route('/post/<int:id>')
 def post(id):
     post = PostModel.query.filter_by(id=id).first_or_404()
-    tags = TagModel.query.all()
-    replies = ReplyModel.query.filter_by(post_id=id).all()
 
     post_json = {}
     reply_json = {}
-    user_posts_json = {}
     user_posts = []
     keywords = ''
 
@@ -536,7 +533,9 @@ def post(id):
     post_json['replies'] = []
 
     for reply in post.replyes:
+        mentions = re.findall("@([a-zA-Z0-9]{1,15})", cleanhtml(reply.text))
         reply_json['text'] = reply.text
+        reply_json['text_e'] = reply.text
         reply_json['id'] = reply.id
         reply_json['author'] = {
             'name': reply.user_in.name,
@@ -545,6 +544,7 @@ def post(id):
             'status': reply.user_in.status,
             'status_color': reply.user_in.status_color
         }
+        reply_json['mentions'] = mentions
         post_json['replies'].append(reply_json.copy())
         reply_json.clear()
 
@@ -572,7 +572,6 @@ def post(id):
         except:
             return make_response(jsonify({'operation': 'failed'}), 401)
 
-        user_info = UserModel.query.filter_by(id=user['id']).first()
         post_json['user'] = {'liked': False, 'following': False}
         user_t = jwt.decode(token, key_c)
         user = UserModel.query.filter_by(id=user_t['id']).first()
@@ -1241,7 +1240,7 @@ def newreply():
         'link': '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id) + '#reply_' + str(
             index),
         'icon': decoded['avatar'],
-        'id': not_is
+        'id': not_id
     })
     mentions = re.findall("@([a-zA-Z0-9]{1,15})", cleanhtml(data['content']))
     mentioned = UserModel.query.filter(UserModel.name.in_(mentions)).all()
@@ -1259,6 +1258,17 @@ def newreply():
             None,
             'reply'
         )
+        db.session.add(notify)
+        db.session.commit()
+        send_notification(post.user_in.id, {
+            'text': '@{}  mentioned you in a comment'.format(decoded['name']),
+            'link': '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(
+                post.id) + '#reply_' + str(
+                index),
+            'icon': decoded['avatar'],
+            'id': not_id
+        })
+
     return make_response(jsonify({'operation': 'success', 'reply_id': index}), 200)
 
 

@@ -5,7 +5,7 @@ import httpagentparser
 from flask import Blueprint, make_response, jsonify, request, url_for, render_template
 
 from models import PostModel, TagModel, LikeModel, ReplyModel, Analyze_Pages, UserModel, Ip_Coordinates, bcrypt, \
-    Notifications_Model, Subscriber, Analyze_Session
+    Notifications_Model, Subscriber, Analyze_Session, ReplyOfReply
 
 import datetime as dt
 from analyze import parseVisitator, sessionID, GetSessionId, getAnalyticsData
@@ -533,7 +533,14 @@ def post(id):
     post_json['replies'] = []
 
     for reply in post.replyes:
+        reply_json['mentions'] = []
         mentions = re.findall("@([a-zA-Z0-9]{1,15})", cleanhtml(reply.text))
+
+        for mention in mentions:
+            check = UserModel.query.filter_by(name=mention).first()
+            if check is not None:
+                reply_json['mentions'].append(mention)
+
         reply_json['text'] = reply.text
         reply_json['text_e'] = reply.text
         reply_json['id'] = reply.id
@@ -544,7 +551,7 @@ def post(id):
             'status': reply.user_in.status,
             'status_color': reply.user_in.status_color
         }
-        reply_json['mentions'] = mentions
+
         post_json['replies'].append(reply_json.copy())
         reply_json.clear()
 
@@ -1206,6 +1213,7 @@ def newreply():
         return make_response(jsonify({'operation': 'error', 'error': 'Invalid method'}), 401)
 
     data = request.json
+    print(data)
 
     if not data['token'] or not data['post_id'] or not data['content']:
         return make_response(jsonify({'operation': 'error', 'error': 'Missing data'}), 401)
@@ -1215,9 +1223,14 @@ def newreply():
     except:
         return make_response(jsonify({'operation': 'error', 'error': 'Invalid token'}), 401)
 
-    new_reply = ReplyModel(None, data['content'], data['post_id'], decoded['id'], None)
+    if data['type'] == 'post':
+        new_reply = ReplyModel(None, data['content'], data['post_id'], decoded['id'], None)
+        index = db.session.execute(Sequence('replyes_id_seq'))
+    else:
+        new_reply = ReplyOfReply(None, data['content'], data['reply_id'], decoded['id'], None)
+        index = db.session.execute(Sequence('replies_of_replies_id_seq'))
+
     not_id = str(db.session.execute(Sequence('notifications_id_seq')))
-    index = db.session.execute(Sequence('replyes_id_seq'))
     post = PostModel.query.filter_by(id=data['post_id']).first()
     notify = Notifications_Model(
         int(not_id),
@@ -1236,9 +1249,8 @@ def newreply():
     db.session.add(notify)
     db.session.commit()
     send_notification(post.user_in.id, {
-        'text': '@{} replied to your post'.format(decoded['name']),
-        'link': '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id) + '#reply_' + str(
-            index),
+        'text': '{} replied to your {}'.format(decoded['name'], data['type']),
+        'link': '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(post.id),
         'icon': decoded['avatar'],
         'id': not_id
     })
@@ -1261,10 +1273,9 @@ def newreply():
         db.session.add(notify)
         db.session.commit()
         send_notification(post.user_in.id, {
-            'text': '@{}  mentioned you in a comment'.format(decoded['name']),
+            'text': '{}  mentioned you in a comment'.format(decoded['name']),
             'link': '/post/' + (str(post.title).replace(' ', '-')).replace('?', '') + '-' + str(
-                post.id) + '#reply_' + str(
-                index),
+                post.id),
             'icon': decoded['avatar'],
             'id': not_id
         })
@@ -1499,9 +1510,21 @@ def edit_reply():
 
     reply = ReplyModel.query.filter_by(id=data['r_id']).first()
     reply.text = data['content']
+
+    reply_json = {}
+
+    reply_json['mentions'] = []
+    reply_json['content'] = data['content']
+    mentions = re.findall("@([a-zA-Z0-9]{1,15})", cleanhtml(data['content']))
+
+    for mention in mentions:
+        check = UserModel.query.filter_by(name=mention).first()
+        if check is not None:
+            reply_json['mentions'].append(mention)
+
     db.session.commit()
 
-    return make_response(jsonify({'operation': 'success'}), 200)
+    return make_response(jsonify({'operation': 'success', 'reply': reply_json}), 200)
 
 
 @api.route('/notifications')

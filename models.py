@@ -167,7 +167,7 @@ class RoleModel(db.Model):
         self.edit_reply_permission = edit_reply_permission
         self.close_post_permission = close_post_permission
         self.delete_user_permission = delete_user_permission
-        self.modify_user_permission = modify_user_permission
+        self.reply_user_permission = modify_user_permission
         self.admin_panel_permission = admin_panel_permission
 
     def __repr__(self):
@@ -281,6 +281,28 @@ class ReplyModel(db.Model):
         return ('<id {}').format(self.id)
 
 
+class ReplyOfReply(db.Model):
+
+    __tablename__ = 'replies_of_replies'
+
+    id = db.Column(db.Integer, db.Sequence('replies_of_replies_id_seq'), primary_key=True)
+    text = db.Column(db.String, primary_key=False)
+    reply_id = db.Column(db.Integer, ForeignKey('replyes.id'))
+    user = db.Column(db.Integer, ForeignKey('users.id'))
+    posted_on = db.Column(db.Date, primary_key=False,
+                          default=datetime.datetime.now)
+
+    reply = db.relationship('ReplyModel', backref='replies', foreign_keys=[reply_id])
+
+    def __init__(self, id, text, reply_id, user, posted_on):
+        self.id = id
+        self.text = text
+        self.reply_id = reply_id
+        self.user = user
+        self.posted_on = posted_on
+
+    def __repr__(self):
+        return ('<id {}').format(self.id)
 
 class LikeModel(db.Model):
 

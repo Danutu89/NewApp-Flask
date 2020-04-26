@@ -142,7 +142,8 @@ def cleanhtml(raw_html):
 
 @api.route('/home', methods=['GET'])
 def home():
-    t = request.args.get('t')
+    print(request.headers)
+    t = request.headers['Token']
     token = None
     if t:
         token = str(t).encode()
@@ -355,7 +356,7 @@ def home():
 
 @api.route('/home/<int:page>', methods=['GET'])
 def home_page(page):
-    t = request.args.get('t')
+    t = request.headers['Token']
     token = None
     if t:
         token = str(t).encode()
@@ -571,7 +572,7 @@ def post(id):
 
         post_json['author']['posts'] = user_posts[0:5]
 
-    token = request.args.get('t')
+    token = request.headers['Token']
     if token:
         token = str(token).encode()
         try:
@@ -657,7 +658,7 @@ def user(name):
 
         user_json['follows'] = user_follow_list
 
-    token = request.args.get('t')
+    token = request.headers['Token']
     if token:
         token = str(token).encode()
         try:
@@ -665,7 +666,7 @@ def user(name):
         except:
             return make_response(jsonify({'operation': 'failed'}), 401)
 
-        user_ = jwt.decode(request.args.get('t'), key_c)
+        user_ = jwt.decode(request.headers['Token'], key_c)
 
         user_json['info'] = {'following': False}
 
@@ -678,7 +679,7 @@ def user(name):
 
 @api.route('/user/settings', methods=['GET', 'POST'])
 def user_settings():
-    t = request.args.get('t')
+    t = request.headers['Token']
     token = None
     if t:
         token = str(t).encode()
@@ -948,7 +949,7 @@ def login():
 
 @api.route('/follow-tag/<string:tag>')
 def fllw_tag(tag):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -980,7 +981,7 @@ def fllw_tag(tag):
 
 @api.route('/like-post/<int:id>')
 def like_post(id):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1085,7 +1086,7 @@ def like_post(id):
 
 @api.route('/follow-user/<int:id>')
 def follow_user(id):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1176,7 +1177,7 @@ def follow_user(id):
 
 @api.route('/save-post/<int:id>')
 def save_post(id):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1373,7 +1374,7 @@ def newpost():
 
 @api.route('/post/delete/<int:id>')
 def delete_post(id):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1412,7 +1413,7 @@ def delete_post(id):
 
 @api.route('/post/close/<int:id>')
 def close_post(id):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1438,7 +1439,7 @@ def close_post(id):
 
 @api.route("/post/edit/<int:id>", methods=['GET', 'POST'])
 def edit_post(id):
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1470,7 +1471,7 @@ def edit_post(id):
 
 @api.route("/reply/delete")
 def delete_reply():
-    token = request.args.get('t')
+    token = request.headers['Token']
     reply_id = request.args.get('id')
 
     if not token or not reply_id:
@@ -1529,7 +1530,7 @@ def edit_reply():
 
 @api.route('/notifications')
 def notifications():
-    token = request.args.get('t')
+    token = request.headers['Token']
     extended = request.args.get('ex')
 
     if not token:
@@ -1610,7 +1611,7 @@ def notifications():
 
 @api.route("/notifications/check")
 def check_not():
-    token = request.args.get('t')
+    token = request.headers['Token']
     notification_id = request.args.get('not_id')
 
     if not token or not notification_id:
@@ -1679,7 +1680,7 @@ def view():
 
 @api.route("/admin/dashboard")
 def dashboard():
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)
@@ -1848,7 +1849,7 @@ def dashboard():
 
 @api.route("/admin/posts")
 def a_posts():
-    token = request.args.get('t')
+    token = request.headers['Token']
 
     if not token:
         return make_response(jsonify({'operation': 'failed'}), 401)

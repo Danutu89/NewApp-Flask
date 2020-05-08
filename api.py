@@ -204,13 +204,11 @@ def home():
                 desc(PostModel.posted_on)).filter_by(approved=True).filter(PostModel.id.in_(tgi)).order_by(
                 desc(PostModel.posted_on)).paginate(page=1, per_page=9)
     elif search:
-        results, total = PostModel.search_post(request.args.get('search'), 1, 9, 'en')
         if token:
-            posts = PostModel.query.filter_by(approved=True).filter(
-                or_(PostModel.lang.like(user_info.lang), PostModel.lang.like('en'))).filter(
-                PostModel.id.in_(results)).order_by(desc(PostModel.posted_on)).paginate(page=1, per_page=9)
+            posts = PostModel.query.whoosh_search(request.args.get('search')).filter_by(approved=True).filter(
+                or_(PostModel.lang.like(user_info.lang), PostModel.lang.like('en'))).order_by(desc(PostModel.posted_on)).paginate(page=1, per_page=9)
         else:
-            posts = PostModel.query.filter_by(approved=True).filter(PostModel.id.in_(results)).order_by(
+            posts = PostModel.query.whoosh_search(request.args.get('search')).filter_by(approved=True).order_by(
                 desc(PostModel.posted_on)).paginate(page=1, per_page=9)
     else:
         if token:

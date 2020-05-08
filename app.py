@@ -16,9 +16,10 @@ from elasticsearch import Elasticsearch
 from flask_compress import Compress
 from werkzeug.wrappers import BaseRequest
 from werkzeug.exceptions import HTTPException, NotFound
-from flask_socketio import SocketIO
+#from flask_socketio import SocketIO
 from flask_jwt_extended import JWTManager
 from geopy.geocoders import Nominatim
+import flask_whooshalchemy as wa
 
 key_c = "mRo48tU4ebP6jIshqaoNf2HAnesrCGHm"
 key_cr = b'vgF_Yo8-IutJs-AcwWPnuNBgRSgncuVo1yfc9uqSiiU='
@@ -41,7 +42,7 @@ config = app.config
 app.secret_key = key_c
 app.config['SESSION_TYPE'] = 'redis'
 app.config['ELASTISEARCH_URL'] = 'http://localhost:9200'
-app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql:///danutu"
+app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql:///newapp"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['WHOOSH_BASE'] = 'whoosh'
 app.config['MAIL_SERVER'] = 'smtp.zoho.eu'
@@ -64,6 +65,7 @@ app.config['COMPRESS_MIMETYPES'] = ['text/html', 'text/css', 'text/xml', 'applic
 app.config['COMPRESS_LEVEL'] = 6
 app.config['COMPRESS_MIN_SIZE'] = 500
 
+
 Compress(app)
 redis_sv = redis.Redis()
 es = Elasticsearch(app.config['ELASTISEARCH_URL'])
@@ -73,8 +75,9 @@ db_engine = create_engine(app.config.get('SQLALCHEMY_DATABASE_URI'), echo=False)
 db.configure_mappers()
 db.create_all()
 bcrypt = Bcrypt(app)
-socket = SocketIO(app, message_queue='redis://', manage_session=False)
+#socket = SocketIO(app, message_queue='redis://', manage_session=False)
 geolocator = Nominatim(user_agent="NewApp")
+
 
 translate = FullClient("7eaa96e0-be79-11e9-8f72-af685da1b20e", apiServer="http://api.cortical.io/rest",
                        retinaName="en_associative")
@@ -83,7 +86,7 @@ cipher_suite = Fernet(key_cr)
 
 from models import UserModel
 
-
+'''
 @socket.on('access')
 def access(token):
     if not token:
@@ -131,7 +134,7 @@ def on_disconnect():
 @app.errorhandler(404)
 def server_error(error):
     return make_response(jsonify({'error': 404}),404)
-
+'''
 
 @app.errorhandler(400)
 def server_error(error):
@@ -142,6 +145,10 @@ def server_error(error):
 def server_error(error):
     return make_response(jsonify({'error': 500}), 500)
 
+
+from models import PostModel
+
+wa.whoosh_index(app,PostModel)
 
 from api import api
 
@@ -166,4 +173,5 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO) """
 
 if __name__ == "__main__":
     app.jinja_env.cache = {}
-    socket.run(app, threading=True, host='0.0.0.0', port=8000);
+    #socket.run(app, threading=True, host='0.0.0.0', port=8000);
+    app.run(host="192.168.1.4")

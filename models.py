@@ -8,6 +8,7 @@ import sqlalchemy.dialects.postgresql as sq
 
 from app import bcrypt, db, db_engine
 
+
 from search_engine import SearchableMixin
 
 from flask import url_for, json
@@ -188,7 +189,7 @@ class TagModel(db.Model):
         self.post = post
 
 
-class PostModel(SearchableMixin, db.Model):
+class PostModel(db.Model):
 
     __tablename__ = 'posts'
 
